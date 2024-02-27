@@ -10,6 +10,20 @@ readonly AZURE_SQL_DATABASE_NAME="ismssqldbprimary"
 readonly AZURE_SQL_SERVER_NAME="wso2is-db-secondary"
 readonly AZURE_SQL_RESOURCE_GROUP="rnd-isurug-charindu"
 
+spinner(){
+    sleep 5 & pid=$!
+ 
+    i=1
+    sp="\|/-"
+    while ps -p $pid > /dev/null
+    do
+        printf "\b%c" "${sp:i++%4:1}"
+        sleep 0.1
+    done
+
+    printf "\b"
+}
+
 # Function to switch endpoints in Traffic Manager
 switch_endpoints() {
     local current_endpoint=${1:-$DEFAULT_CURRENT_ENDPOINT}
@@ -18,8 +32,10 @@ switch_endpoints() {
 
     echo "Switching endpoints from $current_endpoint to $new_endpoint"
 
+    spinner &
     # Enable DR endpoint
     output=$(az network traffic-manager endpoint update --endpoint-status Enabled --name $new_endpoint --profile-name $PROFILE_NAME --resource-group $RESOURSE_GROUP_TM --type $ENDPOINT_TYPE)
+
     name=$(echo "$output" | grep -o '"name": *"[^"]*"' | sed 's/"name": "\(.*\)"/\1/')
     endpoint_status=$(echo "$output" | grep -o '"endpointStatus": *"[^"]*"' | sed 's/"endpointStatus": "\(.*\)"/\1/')
     target=$(echo "$output" | grep -o '"target": *"[^"]*"' | sed 's/"target": "\(.*\)"/\1/')
@@ -27,8 +43,12 @@ switch_endpoints() {
     # Print formatted output
     echo "Endpoint \"$name\" is \"$endpoint_status\" in \"$target\""
 
+    spinner &
     # Disable current endpoint
     output=$(az network traffic-manager endpoint update --endpoint-status Disabled --name $current_endpoint --profile-name $PROFILE_NAME --resource-group $RESOURSE_GROUP_TM --type $ENDPOINT_TYPE)
+
+    wait $!
+
     name=$(echo "$output" | grep -o '"name": *"[^"]*"' | sed 's/"name": "\(.*\)"/\1/')
     endpoint_status=$(echo "$output" | grep -o '"endpointStatus": *"[^"]*"' | sed 's/"endpointStatus": "\(.*\)"/\1/')
     target=$(echo "$output" | grep -o '"target": *"[^"]*"' | sed 's/"target": "\(.*\)"/\1/')
@@ -43,33 +63,34 @@ initiate_failover() {
     local resource_group=${3:-$AZURE_SQL_RESOURCE_GROUP}
     
     # Replace this placeholder logic with actual logic to initiate failover in Azure SQL Database
-    echo "Initiating failover of DATABASE: $db_name on SERVER: $server_name in RESOURCE GROUP: $resource_group"
+    echo "Initiating the failover of DATABASE: $db_name on SERVER: $server_name in RESOURCE GROUP: $resource_group"
+
+    spinner &
 
     output=$(az sql db replica set-primary --name $db_name --resource-group $resource_group --server $server_name)
     partnerRole=$(echo "$output" | grep -o '"partnerRole": *"[^"]*"' | sed 's/"partnerRole": "\(.*\)"/\1/')
     partnerServer=$(echo "$output" | grep -o '"partnerServer": *"[^"]*"' | sed 's/"partnerServer": "\(.*\)"/\1/')
     role=$(echo "$output" | grep -o '"role": *"[^"]*"' | sed 's/"role": "\(.*\)"/\1/')
-    percentComplete=$(echo "$output" | grep -o '"percentComplete": *"[^"]*"' | sed 's/"percentComplete": "\(.*\)"/\1/')
+    percentComplete=$(echo "$output" | grep -o '"percentComplete": *[0-9]*' | sed 's/"percentComplete": *\([0-9]*\)/\1/')
     partnerLocation=$(echo "$output" | grep -o '"partnerLocation": *"[^"]*"' | sed 's/"partnerLocation": "\(.*\)"/\1/')
 
     # Print formatted output
     echo "Failover initiation successful $percentComplete% ."
     echo "Primary"
     # Print the header
-    printf "%-15s : %s\n" "DB name" "$db_name"
-    printf "%-15s : %s\n" "Server" "$server_name"
-    printf "%-15s : %s\n" "Role" "$role"
-    printf "%-15s : %s\n" "Resource Group" "$resource_group"
-    echo -e "ONLINE\n"
+    printf "%-16s : %s\n" "DB name" "$db_name"
+    printf "%-16s : %s\n" "Server" "$server_name"
+    printf "%-16s : %s\n" "Role" "$role"
+    printf "%-16s : %s\n" "Resource Group" "$resource_group"
+    printf "%-16s : %s\n" "Status" "ONLINE"
 
     # Print the secondary section
-    echo "Secondary"
-    printf "%-15s : %s\n" "DB name" "$db_name"
-    printf "%-15s : %s\n" "Server" "$partnerServer"
-    printf "%-15s : %s\n" "Role" "$partnerRole"
-    printf "%-15s : %s\n" "Partner location" "$partnerLocation"
-    echo -e "READABLE\n"
-
+    echo -e "\nSecondary"
+    printf "%-16s : %s\n" "DB name" "$db_name"
+    printf "%-16s : %s\n" "Server" "$partnerServer"
+    printf "%-16s : %s\n" "Role" "$partnerRole"
+    printf "%-16s : %s\n" "Partner location" "$partnerLocation"
+    printf "%-16s : %s\n" "Status" "READABLE"
 
     # Example: az sql db replica failover -g <resource-group> -s <server-name> -d <database-name> --partner-group <partner-resource-group> --location <failover-location>
 }
@@ -174,7 +195,7 @@ case $input in
     3)
         # Do both
         if switch_endpoints "$current_endpoint" "$new_endpoint"; then
-            echo "Endpoints switched in Traffic Manager"
+            echo -e "Endpoints switched in Traffic Manager\n"
         fi
 
         if initiate_failover "$db_name" "$server_name" "$resource_group"; then
