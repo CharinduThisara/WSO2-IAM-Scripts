@@ -65,8 +65,6 @@ initiate_failover() {
     # Replace this placeholder logic with actual logic to initiate failover in Azure SQL Database
     echo "Initiating the failover of DATABASE: $db_name on SERVER: $server_name in RESOURCE GROUP: $resource_group"
 
-    spinner &
-
     output=$(az sql db replica set-primary --name $db_name --resource-group $resource_group --server $server_name)
     partnerRole=$(echo "$output" | grep -o '"partnerRole": *"[^"]*"' | sed 's/"partnerRole": "\(.*\)"/\1/')
     partnerServer=$(echo "$output" | grep -o '"partnerServer": *"[^"]*"' | sed 's/"partnerServer": "\(.*\)"/\1/')
