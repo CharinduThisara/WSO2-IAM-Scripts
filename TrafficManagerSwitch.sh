@@ -7,8 +7,8 @@ readonly PROFILE_NAME="wso2-is"
 readonly ENDPOINT_TYPE="azureEndpoints"
 
 readonly AZURE_SQL_DATABASE_NAME="ismssqldbprimary"
-readonly AZURE_SQL_SERVER_NAME="is-mssql-server-primary"
-readonly AZURE_SQL_RESOURCE_GROUP="rnd-charindut-isuru"
+readonly AZURE_SQL_SERVER_NAME="wso2is-db-secondary"
+readonly AZURE_SQL_RESOURCE_GROUP="rnd-isurug-charindu"
 
 # Function to switch endpoints in Traffic Manager
 switch_endpoints() {
